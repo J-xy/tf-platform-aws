@@ -4,13 +4,10 @@ Guidance for Claude Code when working in this repository.
 
 ## What this is
 
-A personal Terraform learning lab. The current (and only) piece of work is
-`bootstrap/` — the standard "chicken and egg" step that provisions the remote
-state backend itself: an S3 bucket for state plus a DynamoDB table for state
-locking. Because it creates the backend, `bootstrap/` is applied with **local
-state** and has no `backend` block of its own.
+A personal Terraform learning lab: remote state (bootstrap/), a VPC (network/),
+GitHub OIDC CI roles (ci/), and an AWS Organizations sandbox (org/). Public repo
+on GitHub with plan/apply CI; see the stage sections below.
 
-Git repo, no remote. No CI, no test suite, no module registry.
 
 ## Working style — read this first
 
@@ -72,6 +69,27 @@ and **this machine has none configured**: no `~/.aws/`, no `AWS_PROFILE` /
 fail at provider configuration until that is fixed. Don't reach for anything
 hitting the AWS API without checking with the user first.
 
+## Stage 7: org/ (applied locally 2026-10-11)
+
+- Org `o-xaljr9y4g9`; 964291633585 is the MANAGEMENT account (it also holds
+  state, CI roles and the VPC). SCPs never apply to it — see threat model T6.
+- `org/` creates two member accounts, `security-tooling` (delegated admin for
+  org security services) and `workload`. Applied locally; deliberately NOT in
+  the CI matrix — the CI apply role holds no `organizations:*`.
+- Both accounts: `prevent_destroy = true` and `close_on_deletion = false`.
+  Never delete the resource blocks — that bypasses prevent_destroy. To stop
+  managing an account, use a `removed { lifecycle { destroy = false } }` block.
+- Emails and account IDs live only in gitignored `terraform.tfvars`.
+- Cross-account access is `OrganizationAccountAccessRole` (admin) for now;
+  replacing it with a scoped role is an open follow-up.
+- `org/budgets.tf`: $5/month budgets per member, created in the management
+  account with `LinkedAccount` filters so members cannot delete them. One SNS
+  topic; its policy allows only `budgets.amazonaws.com` with
+  `aws:SourceAccount` = management. Email subscription must be confirmed by
+  hand — Terraform cannot tell pending from confirmed.
+- `org/` uses the aws provider **~> 6.0**; every other stack is on 5.x. Do not
+  downgrade `org/` — its state was written by 6.x.
+
 ## Stage 6: apply role (applied locally 2026-09-29)
 
 - `ci/tf_apply.tf`: role `github-actions-terraform-apply`. Trusts ONLY
@@ -124,9 +142,11 @@ bucket — versioning does not protect against it.
   finding instead.
   - `AVD-AWS-0132` (S3 without CMK) — permanent, deliberate SSE-S3 choice.
   - `AVD-AWS-0178` (VPC flow logs) — deferred with `expiredAt: 2027-03-01`.
+  - `AVD-AWS-0095` (SNS topic unencrypted, `org/budgets.tf`) — permanent; the
+    AWS-managed SNS key cannot grant Budgets, so encrypting with it drops alerts.
 - **tfsec is not used and should not be added.** It is in maintenance mode;
-  Aqua directs users to Trivy, which has the same engine. Checkov is also
-  deliberately absent — it overlaps Trivy heavily.
+Aqua directs users to Trivy, which has the same engine. Checkov is also
+deliberately absent — it overlaps Trivy heavily.
 - The DynamoDB lock table was DELETED in this stage. It had been dead since
   `use_lockfile` replaced it. `bootstrap/outputs.tf` no longer exports
   `state_lock_table_name`.
