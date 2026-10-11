@@ -29,3 +29,17 @@ misconfigurations:
       cost. The expiry below forces this back onto the list rather than
       letting it rot as a permanent exception.
     expiredAt: 2027-03-01
+
+  - id: AVD-AWS-0095
+    paths:
+      - "org/budgets.tf"
+    statement: >-
+      "Topic does not have encryption enabled". This topic carries only AWS
+      Budgets alerts: a budget name and dollar figures, nothing secret. The
+      no-cost fix breaks the control: the AWS-managed alias/aws/sns key has a
+      fixed key policy that cannot grant budgets.amazonaws.com, so Budgets
+      fails to publish and alerts drop silently. The real fix is a
+      customer-managed key whose policy grants Budgets kms:GenerateDataKey*
+      and kms:Decrypt, at about $1/month plus a key policy to maintain, for no
+      confidentiality gain on this payload. Revisit if this topic ever carries
+      anything beyond budget alerts.
