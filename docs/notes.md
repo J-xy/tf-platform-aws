@@ -22,3 +22,8 @@ state and CI, and SCPs can't constrain it (T6). Cross-account access starts with
 the admin OrganizationAccountAccessRole, to be replaced by a scoped role.
 
 Account IDs: kept in terraform.tfvars, gitignored, never committed.
+
+Follow-up: org/ is on the aws provider 6.x (its first init ran unconstrained and
+locked 6.68.0; state was written by 6.x, so it was pinned ~> 6.0, not downgraded).
+bootstrap, network and ci are still on 5.x. Upgrade them deliberately, one stack
+at a time, planning each.
