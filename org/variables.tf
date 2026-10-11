@@ -8,3 +8,8 @@ variable "workload_email" {
   type        = string
   description = "Root email for the workload account (plus-addressed)."
 }
+
+variable "budget_alert_email" {
+  type        = string
+  description = "Email address to receive budget alerts."
+}
